@@ -3,8 +3,6 @@ import numpy as np  # 导入Numpy
 import jieba  # 导入结巴分词
 
 from keras.preprocessing import sequence
-from keras.optimizers import SGD, RMSprop, Adagrad
-from keras.utils import np_utils
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation
 from keras.layers.embeddings import Embedding
@@ -63,6 +61,7 @@ model.compile(loss='binary_crossentropy', optimizer='adam')
 
 model.fit(x, y, batch_size=16, nb_epoch=10)  # 训练时间为若干个小时
 
-classes = model.predict_classes(xt)
-acc = np_utils.accuracy(classes, yt)
-print('Test accuracy:', acc)
+model.save("sentiment-analysis-lstm-keras.hdf5")
+
+e = model.evaluate(xt, yt)
+print('Test accuracy:', e)
