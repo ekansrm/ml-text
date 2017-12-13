@@ -11,6 +11,10 @@ class SentimentAnalysisLstmKerasService(object):
         print(pStr)
         return [pBool, pInt, pFloat, pStr]
 
+    def predict(self, text: str):
+        print(text)
+        return "hhh"
+
 
 service = SentimentAnalysisLstmKerasService()
 server = SimpleXMLRPCServer(("localhost", 8888))
