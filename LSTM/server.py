@@ -38,28 +38,19 @@ class SentimentAnalysisLstmKerasService(object):
         pass
 
     def testType(self, pBool: bool, pInt: int, pFloat: float, pStr: str):
-        print(pBool)
-        print(pInt)
-        print(pFloat)
-        print(pStr)
         return [pBool, pInt, pFloat, pStr]
 
     def text2seq(self, text: str):
         words = list(jieba.cut(text))
         wordsTokens = tokenize(words)
-        print(wordsTokens)
         seq = list(sequence.pad_sequences([wordsTokens], maxlen=maxlen))
-        print(seq)
         return seq
 
     def predict(self, text: str):
-        print(text)
         seq = np.array(self.text2seq(text))
-        print(seq)
         rv = self.model.predict(seq)
         rv = list(rv)
         rv = rv[0][0]
-        print(rv)
         return float(rv)
 
 
