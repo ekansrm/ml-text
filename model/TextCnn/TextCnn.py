@@ -1,7 +1,7 @@
 
 from keras.preprocessing.sequence import pad_sequences
 
-from preprocess.IGN import X_train_word_ids, X_test_word_ids, y_train, y_test, num_labels, vocab
+from model.preprocess import X_train_word_ids, X_test_word_ids, y_train, y_test, num_labels, vocab
 # One-hot
 # x_train = tokenizer.sequences_to_matrix(X_train_word_ids, mode='binary')
 # x_test = tokenizer.sequences_to_matrix(X_test_word_ids, mode='binary')
@@ -11,20 +11,10 @@ from preprocess.IGN import X_train_word_ids, X_test_word_ids, y_train, y_test, n
 x_train = pad_sequences(X_train_word_ids, maxlen=20)
 x_test = pad_sequences(X_test_word_ids, maxlen=20)
 
-
-from keras import initializers
-from keras import backend as K
-from keras.engine.topology import Layer
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.linear_model import SGDClassifier
-from sklearn.feature_extraction.text import TfidfVectorizer
-
 from keras.layers.merge import concatenate
-from keras.models import Sequential, Model
-from keras.layers import Dense, Embedding, Activation, merge, Input, Lambda, Reshape
-from keras.layers import Convolution1D, Flatten, Dropout, MaxPool1D, GlobalAveragePooling1D
-from keras.layers import LSTM, GRU, TimeDistributed, Bidirectional
-
+from keras.models import Model
+from keras.layers import Dense, Embedding, Input
+from keras.layers import Convolution1D, Flatten, Dropout, MaxPool1D
 
 # GLOVE_DIR = "D:\python\kaggle\game_reviews\glove"
 # embeddings_index = {}

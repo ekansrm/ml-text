@@ -1,3 +1,3 @@
-# ML-TEXT
+# ML-NLP
 
-For Machine Learning about text
+For Machine Learning about Natural Language Processing
