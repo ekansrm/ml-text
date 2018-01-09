@@ -499,5 +499,5 @@ $RECYCLE.BIN/
 
 
 # Project
-
-data/
+config.ini
+runtime/
