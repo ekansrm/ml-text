@@ -31,6 +31,7 @@ from move_this.model import BaseNgramModel
 from nltk import LidstoneProbDist, compat, ConditionalFreqDist, ngrams
 
 
+# TODO 这里修改过, 补回 B()
 class FixedConditionalFreqDist(ConditionalFreqDist):
 
     def B(self):
@@ -85,9 +86,8 @@ class NgramsModel(BaseNgramModel):
                 self._ngrams.add(ngram)
                 context = tuple(ngram[:-1])
                 token = ngram[-1]
+                # TODO 这里修改过
                 cfd[context][token] += 1
-        print(len(cfd))
-        print(cfd.N())
 
         self._probdist = estimator(cfd, *estimator_args, **estimator_kwargs)
 
@@ -110,7 +110,9 @@ class NgramsModel(BaseNgramModel):
                 # this context.
                 # i.e. Count(word | context) > 0
                 for word in self._words_following(ctxt, cfd):
-                    total_observed_pr += self.prob(word, ctxt)
+                    _pr = self.prob(word, ctxt)
+                    print(_pr)
+                    total_observed_pr += _pr
                     # we also need the total (n-1)-gram probability of
                     # words observed in this n-gram context
                     backoff_total_pr += self._backoff.prob(word, backoff_ctxt)
@@ -132,10 +134,11 @@ class NgramsModel(BaseNgramModel):
     def _words_following(self, context, cond_freq_dist):
 
         # TODO 需要做兼容处理 Py2 Py3
-        for ctxt, word in cond_freq_dist.items():
-            print(ctxt, word)
-            if ctxt == context:
-                yield word.values()
+        # for ctxt, word in cond_freq_dist.items():
+        #     if ctxt == context:
+        #         yield word.values()
+        if context in cond_freq_dist:
+            return iter(cond_freq_dist[context])
 
     def score(self, word, context):
         return self.prob(word=word, context=context)
@@ -150,8 +153,13 @@ class NgramsModel(BaseNgramModel):
         :type context: list(str)
         """
         context = tuple(context)
-        if (context + (word,) in self._ngrams) or self.is_unigram_model:
-            return self._probdist.prob(context, word)
+        if context + (word,) in self._ngrams or self.is_unigram_model:
+            print(word)
+            # TODO 这里有修改
+            _prob = self._probdist.prob((word, ))
+            print(_prob)
+            print(type(_prob))
+            return _prob
         else:
             return self._alpha(context) * self._backoff.prob(word, context[1:])
 
