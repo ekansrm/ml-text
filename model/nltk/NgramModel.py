@@ -64,6 +64,7 @@ class NgramsModel(object):
                 freq_dict[ngram] += 1
 
         self._prob_dist = estimator(freq_dict, *estimator_args, **estimator_kwargs)
+        self._cond_freq_dist = cfd
 
         # recursively construct the lower-order models
         if not self.is_unigram_model:
@@ -83,7 +84,7 @@ class NgramsModel(object):
                 # this is the subset of words that we OBSERVED following
                 # this context.
                 # i.e. Count(word | context) > 0
-                for word in self._words_following(ctxt, cfd):
+                for word in self._words_following(ctxt):
                     _pr = self.score(word, ctxt)
                     total_observed_pr += _pr
                     # we also need the total (n-1)-gram probability of
@@ -104,15 +105,25 @@ class NgramsModel(object):
 
                 self._backoff_alphas[ctxt] = alpha_ctxt
 
-    @staticmethod
-    def _words_following(context, cond_freq_dist):
+    def _words_following(self, context):
 
         # TODO cond_freq_dist 的数据类型已经发生了变化. 另外, 下面的方式效率更高些
         # for ctxt, word in cond_freq_dist.items():
         #     if ctxt == context:
         #         yield word.values()
-        if context in cond_freq_dist:
-            return cond_freq_dist[context]
+        if context in self._cond_freq_dist:
+            return self._cond_freq_dist[context]
+
+    def prob(self, word, context):
+
+        _score = self.score(word, context)
+        _all_next_word = self._words_following(context)
+        if _all_next_word is not None:
+            _score_list = [self.score(word, context) for word in _all_next_word]
+            _sum = sum(_score_list)
+            return _score/_sum
+        else:
+            return _score
 
     def score(self, word, context):
         """
@@ -174,6 +185,12 @@ if __name__ == '__main__':
     print(m1.score("think", ()))
     print(m1.score("don't", ()))
     print(m1.score("way", ()))
+
+    print(m1.prob("Journal", ()))
+    print(m1.prob("think", ()))
+    print(m1.prob("don't", ()))
+    print(m1.prob("way", ()))
+
     print()
 
     print('-'*8 + "n=02" + '-'*8)
@@ -182,12 +199,23 @@ if __name__ == '__main__':
     print(m2.score("think", ("I",)))
     print(m2.score("don't", ("I",)))
     print(m2.score("way", ("Go",)))
+
+    print(m2.prob("Journal", ("Street",)))
+    print(m2.prob("think", ("I",)))
+    print(m2.prob("don't", ("I",)))
+    print(m2.prob("way", ("Go",)))
     print()
 
     print('-'*8 + "n=03" + '-'*8)
     m3 = NgramsModel(n=3, train=text6, gamma=1, bins=None)
-    print(m2.score("Journal", ("Wall", "Street",)))
-    print(m2.score("think", ("I", "don't", )))
-    print(m2.score("don't", ("I", "really")))
-    print(m2.score("way", ("Just", "go",)))
+    print(m3.score("Journal", ("Wall", "Street",)))
+    print(m3.score("think", ("I", "don't", )))
+    print(m3.score("don't", ("I", "really")))
+    print(m3.score("way", ("Just", "go",)))
+
+    print(m3.prob("Journal", ("Wall", "Street",)))
+    print(m3.prob("think", ("I", "don't", )))
+    print(m3.prob("don't", ("I", "really")))
+    print(m3.prob("way", ("Just", "go",)))
+
     print()
