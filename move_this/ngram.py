@@ -71,7 +71,9 @@ class NgramsModel(BaseNgramModel):
         if estimator is None:
             estimator = _estimator
 
-        cfd = FixedConditionalFreqDist()
+        # TODO ConditionalFreqDist 不再从 Freqdict 继承, 没有 freqdict 方法和 B 方法, 所以另外记录 freqDict
+        cfd = ConditionalFreqDist()
+        freqdict = FreqDist()
 
         # set read-only ngrams set (see property declaration below to reconfigure)
         self._ngrams = set()
@@ -88,8 +90,9 @@ class NgramsModel(BaseNgramModel):
                 token = ngram[-1]
                 # TODO 这里修改过
                 cfd[context][token] += 1
+                freqdict[ngram] += 1
 
-        self._probdist = estimator(cfd, *estimator_args, **estimator_kwargs)
+        self._probdist = estimator(freqdict, *estimator_args, **estimator_kwargs)
 
         # recursively construct the lower-order models
         if not self.is_unigram_model:
@@ -111,7 +114,6 @@ class NgramsModel(BaseNgramModel):
                 # i.e. Count(word | context) > 0
                 for word in self._words_following(ctxt, cfd):
                     _pr = self.prob(word, ctxt)
-                    print(_pr)
                     total_observed_pr += _pr
                     # we also need the total (n-1)-gram probability of
                     # words observed in this n-gram context
@@ -138,7 +140,7 @@ class NgramsModel(BaseNgramModel):
         #     if ctxt == context:
         #         yield word.values()
         if context in cond_freq_dist:
-            return iter(cond_freq_dist[context])
+            return cond_freq_dist[context]
 
     def score(self, word, context):
         return self.prob(word=word, context=context)
@@ -153,12 +155,10 @@ class NgramsModel(BaseNgramModel):
         :type context: list(str)
         """
         context = tuple(context)
-        if context + (word,) in self._ngrams or self.is_unigram_model:
-            print(word)
+        _ngrams = context + (word,)
+        if _ngrams in self._ngrams or self.is_unigram_model:
             # TODO 这里有修改
-            _prob = self._probdist.prob((word, ))
-            print(_prob)
-            print(type(_prob))
+            _prob = self._probdist.prob(_ngrams)
             return _prob
         else:
             return self._alpha(context) * self._backoff.prob(word, context[1:])
@@ -186,6 +186,11 @@ class NgramsModel(BaseNgramModel):
         return self.logscore(word=word, context=context)
 
 
-module = NgramsModel(n=2, train=text6, gamma=0.2, bins=None)
+m = NgramsModel(n=2, train=text6, gamma=1, bins=None)
 
-print(module.prob("Apple", "My name is"))
+# print(m.prob("think", ("I", "don't")))
+# print(m.prob("of", ("The", "Book",)))
+print(m.prob("Journal", ("Street",)))
+print(m.prob("think", ("I", )))
+print(m.prob("don't", ("I",)))
+print(m.prob("way", ("Go",)))
