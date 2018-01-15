@@ -1,5 +1,11 @@
 from __future__ import unicode_literals, division
+
+from nltk import LidstoneProbDist, compat, ConditionalFreqDist, ngrams
 from nltk.book import text6
+from nltk.probability import (FreqDist)
+
+from move_this.model import BaseNgramModel
+
 
 # Natural Language Toolkit: API for Language Models
 #
@@ -7,10 +13,7 @@ from nltk.book import text6
 # Author: Steven Bird <stevenbird1@gmail.com>
 # URL: <http://www.nltk.org/>
 # For license information, see LICENSE.TXT
-
-
 # should this be a subclass of ConditionalProbDistI?
-
 # Natural Language Toolkit: Language Models
 #
 # Copyright (C) 2001-2014 NLTK Project
@@ -19,21 +22,15 @@ from nltk.book import text6
 #          Ilia Kurenkov <ilia.kurenkov@gmail.com>
 # URL: <http://nltk.org/>
 # For license information, see LICENSE.TXT
-
-from nltk.probability import (FreqDist)
 # from nltk.util import ngrams
 #
 # bigrams = ngrams(text6, 2)
 # bigramsDist = FreqDist(bigrams)
 # print(bigramsDist.most_common(10))
 
-from move_this.model import BaseNgramModel
-from nltk import LidstoneProbDist, compat, ConditionalFreqDist, ngrams
-
 
 # TODO 这里修改过, 补回 B()
 class FixedConditionalFreqDist(ConditionalFreqDist):
-
     def B(self):
         return len(self)
 
@@ -47,15 +44,144 @@ def _estimator(fdist, *estimator_args, **estimator_kwargs):
     return LidstoneProbDist(fdist, *estimator_args, **estimator_kwargs)
 
 
-class NgramsModel(BaseNgramModel):
+# Ngram模型需要的NgramCounter
 
+
+class BaseNgramCounter(object):
+    def __init__(self, order, super_ngrams, train, pad_left=True, pad_right=False,
+                 estimator=None, *estimator_args, **estimator_kwargs):
+
+        if super_ngrams is not None:
+            self.ngrams = super_ngrams
+        else:
+            self.ngrams = {}
+
+        self.order = order
+
+        # protection from cryptic behavior for calling programs
+        # that use the pre-2.0.2 interface
+        assert (isinstance(pad_left, bool))
+        assert (isinstance(pad_right, bool))
+
+        # make sure n is greater than zero, otherwise print it
+        assert (order > 0), order
+
+        # For explicitness save the check whether this is a unigram model
+        self.is_unigram_model = (order == 1)
+        # save the ngram order number
+        self._n = order
+
+        # save left and right padding
+        self._pad_left = pad_left
+        self._pad_right = pad_right
+
+        if estimator is None:
+            estimator = _estimator
+
+        # TODO ConditionalFreqDist 不再从 Freqdict 继承, 没有 freqdict 方法和 B 方法, 所以另外记录 freqDict
+        cfd = ConditionalFreqDist()
+        freqdict = FreqDist()
+
+        # set read-only ngrams set (see property declaration below to reconfigure)
+        self._ngrams = set()
+
+        # If given a list of strings instead of a list of lists, create enclosing list
+        if (train is not None) and isinstance(train[0], compat.string_types):
+            train = [train]
+
+        for sent in train:
+            raw_ngrams = ngrams(sent, order, pad_left, pad_right, left_pad_symbol=' ', right_pad_symbol=' ')
+            for ngram in raw_ngrams:
+                self._ngrams.add(ngram)
+                context = tuple(ngram[:-1])
+                token = ngram[-1]
+                # TODO 这里修改过
+                cfd[context][token] += 1
+                freqdict[ngram] += 1
+
+        self.ngrams[order] = freqdict
+
+        # recursively construct the lower-order models
+        if not self.is_unigram_model:
+            lower_ngrams = BaseNgramCounter(order - 1,
+                                            self.ngrams,
+                                            train,
+                                            pad_left,
+                                            pad_right,
+                                            )
+            self.ngrams[order-1] = lower_ngrams
+
+    def check_against_vocab(self, word):
+        if word in self.ngrams[self.order]:
+            return word
+        return ''
+
+        # raise NotImplementedError()
+
+    def to_ngrams(self, text):
+        return ngrams(text, self.order, self._pad_left, self._pad_right, left_pad_symbol=' ', right_pad_symbol=' ')
+        # raise NotImplementedError()
+
+
+class NgramsModel2(BaseNgramModel):
+
+    def __init__(self, n, train, pad_left=True, pad_right=False,
+                 estimator=None, *estimator_args, **estimator_kwargs):
+
+        ngramCounter = BaseNgramCounter(n, None, train=text6)
+
+        super(NgramsModel2, self).__init__(ngram_counter=ngramCounter)
+
+    def _words_following(self, context, cond_freq_dist):
+
+        # TODO 需要做兼容处理 Py2 Py3
+        # for ctxt, word in cond_freq_dist.items():
+        #     if ctxt == context:
+        #         yield word.values()
+        if context in cond_freq_dist:
+            return cond_freq_dist[context]
+
+    def score(self, word, context):
+        return self.prob(word=word, context=context)
+
+    def prob(self, word, context):
+        """
+        Evaluate the probability of this word in this context using Katz Backoff.
+
+        :param word: the word to get the probability of
+        :type word: str
+        :param context: the context the word is in
+        :type context: list(str)
+        """
+        context = tuple(context)
+        _ngrams = context + (word,)
+        if _ngrams in self._ngrams or self.is_unigram_model:
+            # TODO 这里有修改
+            _prob = self._probdist.prob(_ngrams)
+            return _prob
+        else:
+            return self._alpha(context) * self._backoff.prob(word, context[1:])
+
+    def _alpha(self, context):
+        """Get the backoff alpha value for the given context
+        """
+        error_message = "Alphas and backoff are not defined for unigram models"
+        assert not self.is_unigram_model, error_message
+
+        if context in self._backoff_alphas:
+            return self._backoff_alphas[context]
+        else:
+            return 1
+
+
+class NgramsModel(BaseNgramModel):
     def __init__(self, n, train, pad_left=True, pad_right=False,
                  estimator=None, *estimator_args, **estimator_kwargs):
 
         # protection from cryptic behavior for calling programs
         # that use the pre-2.0.2 interface
-        assert(isinstance(pad_left, bool))
-        assert(isinstance(pad_right, bool))
+        assert (isinstance(pad_left, bool))
+        assert (isinstance(pad_right, bool))
 
         # make sure n is greater than zero, otherwise print it
         assert (n > 0), n
@@ -96,7 +222,7 @@ class NgramsModel(BaseNgramModel):
 
         # recursively construct the lower-order models
         if not self.is_unigram_model:
-            self._backoff = NgramsModel(n-1, train,
+            self._backoff = NgramsModel(n - 1, train,
                                         pad_left, pad_right,
                                         estimator,
                                         *estimator_args,
@@ -191,6 +317,15 @@ m = NgramsModel(n=2, train=text6, gamma=1, bins=None)
 # print(m.prob("think", ("I", "don't")))
 # print(m.prob("of", ("The", "Book",)))
 print(m.prob("Journal", ("Street",)))
-print(m.prob("think", ("I", )))
+print(m.prob("think", ("I",)))
 print(m.prob("don't", ("I",)))
 print(m.prob("way", ("Go",)))
+
+
+m2 = NgramsModel2(n=2, train=text6, gamma=1, bins=None)
+
+print(m2.prob("Journal", ("Street",)))
+print(m2.prob("think", ("I",)))
+print(m2.prob("don't", ("I",)))
+print(m2.prob("way", ("Go",)))
+
